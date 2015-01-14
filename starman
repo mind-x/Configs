@@ -1,0 +1,96 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          starman
+# Required-Start:    $syslog $remote_fs
+# Required-Stop:     $syslog
+# Default-Start:     3 5
+# Default-Stop:      0 1 2 6
+# Short-Description: starman
+# Description:       starman
+### END INIT INFO
+
+STARMAN_BIN=/usr/bin/starman
+test -x $STARMAN_BIN || { echo "$STARMAN_BIN not installed";
+        if [ "$1" = "stop" ]; then exit 0;
+        else exit 5; fi; }
+STARMAN_PID=/var/run/starman.pid
+#Configuring starman..
+USER=wwwrun
+GROUP=www
+ENV=deployment
+LOG=/var/log/starman.log
+CWD=/srv/www/dancer/web-app
+
+#Start options
+OPTIONS="--user $USER --group $GROUP --env $ENV --error-log $LOG --workers=10 --listen /tmp/starman.sock --app $CWD/bin/app.pl --pid $STARMAN_PID -D"
+
+. /etc/rc.status
+
+rc_reset
+
+
+case "$1" in
+    start)
+        echo -n "Starting starman "
+        $STARMAN_BIN $OPTIONS
+        rc_status -v
+        ;;
+    stop)
+        echo -n "Shutting down starman "
+	_get_pathname ()
+	{
+ 		local pid=$(<$STARMAN_PID)
+ 		PINTOD_PATHNAME="$(readlink /proc/$pid/exe 2>/dev/null)"
+	}
+	_get_pathname
+	killproc -p $STARMAN_PID $PINTOD_PATHNAME
+	rc_status -v
+        ;;
+    try-restart|condrestart)
+        if test "$1" = "condrestart"; then
+                echo "${attn} Use try-restart ${done}(LSB)${attn} rather than condrestart ${warn}(RH)${norm}"
+        fi
+        $0 status
+        if test $? = 0; then
+                $0 restart
+        else
+                rc_reset
+        fi
+        rc_status
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        rc_status
+        ;;
+    force-reload)
+
+        echo -n "Reload service starman "
+        /sbin/killproc -p $STARMAN_PID -HUP $STARMAN_BIN
+        rc_status -v
+
+        ;;
+    reload)
+        echo -n "Reload service starman "
+        /sbin/killproc -p $STARMAN_PID -HUP $STARMAN_BIN
+        rc_status -v
+
+        ;;
+    reopen)
+        echo -n "Reopen the logfiles "
+        /sbin/killproc -p $STARMAN_PID -USR1 $STARMAN_BIN
+        rc_status -v
+        ;;
+
+    status)
+        echo -n "Checking for service starman "
+        /sbin/checkproc -p $STARMAN_PID $STARMAN_BIN
+        rc_status -v
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|try-restart|restart|force-reload|reload|probe}"
+        exit 1
+        ;;
+esac
+rc_exit
+
