@@ -1,15 +1,28 @@
 #! /bin/sh
+### BEGIN INIT INFO
+# Provides:          starman
+# Required-Start:    $syslog $remote_fs
+# Required-Stop:     $syslog
+# Default-Start:     3 5
+# Default-Stop:      0 1 2 6
+# Short-Description: starman
+# Description:       starman
+### END INIT INFO
 
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-DAEMON=/usr/local/bin/plackup
-NAME="starman"
-CWD=/srv/www/dancer/web-app/$2
-# Defaults
-RUN="no"
-OPTIONS="--env $3 --server Starman --workers=2 --S /var/run/starman.sock --app $CWD/bin/app.pl"
-PIDFILE="$NAME.pid"
-
-test -x $DAEMON || exit 0
+STARMAN_BIN=/usr/bin/starman
+test -x $STARMAN_BIN || { echo "$STARMAN_BIN not installed";
+        if [ "$1" = "stop" ]; then exit 0;
+        else exit 5; fi; }
+STARMAN_PID=/var/run/starman.pid
+#Configuring starman..
+USER=www-data
+GROUP=www-data
+ENV=deployment
+LOG=/path/to/starman.log
+CWD=/path/to/dancer/app
+LISTEN=/path/to/starman.sock #or host:port
+#Start options
+OPTIONS="--user $USER --group $GROUP --env $ENV --error-log $LOG --workers=10 --listen $LISTEN --app $CWD/bin/app.pl --pid $STARMAN_PID -D"
 
 log_daemon_msg() {
     echo -n "$1: $2"
@@ -27,8 +40,8 @@ echo "."
 
 start()
 {
-    log_daemon_msg "Starting plack server" "$NAME"
-    start-stop-daemon -b -m --start --quiet --pidfile "$PIDFILE" --exec $DAEMON -- $OPTIONS
+    log_daemon_msg "Starting server" "starman"
+    start-stop-daemon -b -m --start --quiet --pidfile "$STARMAN_PID" --exec $STARMAN_BIN -- $OPTIONS
     if [ $? != 0 ]; then
 log_end_msg 1
         exit 1
@@ -42,33 +55,33 @@ signal()
 
     if [ "$1" = "stop" ]; then
 SIGNAL="TERM"
-        log_daemon_msg "Stopping plack server" "$NAME"
+        log_daemon_msg "Stopping server" "starman"
     else
 if [ "$1" = "reload" ]; then
 SIGNAL="HUP"
-            log_daemon_msg "Reloading plack server" "$NAME"
+            log_daemon_msg "Reloading server" "starman"
     else
 echo "ERR: wrong parameter given to signal()"
         exit 1
     fi
 fi
-if [ -f "$PIDFILE" ]; then
-start-stop-daemon --stop --signal $SIGNAL --quiet --pidfile "$PIDFILE"
+if [ -f "$STARMAN_PID" ]; then
+start-stop-daemon --stop --signal $SIGNAL --quiet --pidfile "$STARMAN_PID"
      if [ $? = 0 ]; then
 log_end_msg 0
         else
 SIGNAL="KILL"
-        start-stop-daemon --stop --signal $SIGNAL --quiet --pidfile "$PIDFILE"
+        start-stop-daemon --stop --signal $SIGNAL --quiet --pidfile "$STARMAN_PID"
             if [ $? != 0 ]; then
 log_end_msg 1
                 [ $2 != 0 ] || exit 0
             else
-rm "$PIDFILE"
+rm "$STARMAN_PID"
                 log_end_msg 0
             fi
 fi
 if [ "$SIGNAL" = "KILL" ]; then
-rm -f "$PIDFILE"
+rm -f "$STARMAN_PID"
         fi
 else
 log_end_msg 0
@@ -103,7 +116,7 @@ case "$1" in
     ;;
 
     *)
-    echo "Usage: /etc/init.d/$NAME {start|force-start|stop|force-stop|reload|restart|force-reload}"
+    echo "Usage: $0 {start|force-start|stop|force-stop|reload|restart|force-reload}"
     exit 1
     ;;
 esac
